@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { Venue, BookingDraft } from './types';
 import { User } from '@supabase/supabase-js';
@@ -8,55 +8,19 @@ import VenueDetailPage from './pages/VenueDetailPage';
 import CheckoutPage from './pages/CheckoutPage';
 import HistoryPage from './pages/HistoryPage';
 import { Search, History, LogOut, Home, UserCircle } from 'lucide-react';
-
-type Page = 'home' | 'detail' | 'checkout' | 'history' | 'auth';
-
-const getInitialPage = (): Page => {
-  const path = window.location.pathname.slice(1);
-  if (['home', 'detail', 'checkout', 'history', 'auth'].includes(path)) {
-    return path as Page;
-  }
-  return 'home';
-};
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [page, setPage] = useState<Page>(getInitialPage());
+  
+  // Shared state (could also be moved to Context or URL params, but keeping it simple for the refactor)
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const navigate = (newPage: Page, replace = false) => {
-    setPage(newPage);
-    const url = newPage === 'home' ? '/' : `/${newPage}`;
-    if (replace) {
-      window.history.replaceState({ page: newPage }, '', url);
-    } else {
-      window.history.pushState({ page: newPage }, '', url);
-    }
-  };
-
-  // Gunakan ref supaya event listener auth selalu punya nilai page terbaru
-  // tanpa harus me-re-run useEffect setiap kali page berubah.
-  const pageRef = useRef(page);
-  pageRef.current = page;
-
-  useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
-      if (e.state && e.state.page) {
-        setPage(e.state.page as Page);
-      } else {
-        setPage(getInitialPage());
-      }
-    };
-    
-    // Set initial state hanya sekali saat pertama kali web diload
-    window.history.replaceState({ page: getInitialPage() }, '', window.location.pathname);
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,19 +32,17 @@ export default function App() {
       const newUser = session?.user ?? null;
       setUser(newUser);
       // Jika user baru login dan sedang di halaman auth, redirect ke home
-      if (newUser && pageRef.current === 'auth') {
-        // Panggil navigate tanpa re-render useEffect
-        setPage('home');
-        window.history.replaceState({ page: 'home' }, '', '/');
+      if (newUser && window.location.pathname === '/login') {
+        navigate('/', { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate('home');
+    navigate('/');
     setSelectedVenue(null);
     setBookingDraft(null);
   };
@@ -96,34 +58,33 @@ export default function App() {
     );
   }
 
-  // Render AuthPage sebagai overlay jika page === 'auth'
-  if (page === 'auth') {
-    return <AuthPage onAuth={() => navigate('home')} />;
+  // Khusus route /login dirender penuh tanpa header
+  if (location.pathname === '/login') {
+    return <AuthPage onAuth={() => navigate('/')} />;
   }
 
   const handleSelectVenue = (venue: Venue) => {
     setSelectedVenue(venue);
-    navigate('detail');
+    navigate('/detail');
   };
 
   const handleBook = (draft: BookingDraft) => {
-    // Kalau belum login, redirect ke auth dulu
     if (!user) {
-      navigate('auth');
+      navigate('/login');
       return;
     }
     setBookingDraft(draft);
-    navigate('checkout');
+    navigate('/checkout');
   };
 
   const handleCheckoutSuccess = () => {
-    navigate('history');
+    navigate('/history');
     setBookingDraft(null);
     setSelectedVenue(null);
   };
 
   const goHome = () => {
-    navigate('home');
+    navigate('/');
     setSelectedVenue(null);
     setBookingDraft(null);
   };
@@ -147,7 +108,7 @@ export default function App() {
               <img src="/assets/symbol.svg" alt="SportHub Logo" className="w-5 h-5" />
               <span className="text-xl font-bold text-gray-900 tracking-tight">SportHub</span>
             </button>
-            {(page === 'home' || page === 'detail') && (
+            {(location.pathname === '/' || location.pathname === '/detail') && (
               <div className="flex-1 relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
@@ -159,7 +120,7 @@ export default function App() {
                 />
               </div>
             )}
-            {(page === 'checkout' || page === 'history') && (
+            {(location.pathname === '/checkout' || location.pathname === '/history') && (
               <div className="flex-1" />
             )}
             <div className="flex items-center gap-1.5 shrink-0">
@@ -167,16 +128,16 @@ export default function App() {
                 <>
                   <span className="text-xs text-gray-500 hidden sm:block mr-1 font-medium">Hi, {displayName}</span>
                   <button
-                    onClick={() => setPage('history')}
+                    onClick={() => navigate('/history')}
                     title="Riwayat Booking"
-                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${page === 'history' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/history' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
                   >
                     <History size={16} />
                   </button>
                   <button
                     onClick={goHome}
                     title="Home"
-                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${page === 'home' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
                   >
                     <Home size={16} />
                   </button>
@@ -190,7 +151,7 @@ export default function App() {
                 </>
               ) : (
                 <button
-                  onClick={() => setPage('auth')}
+                  onClick={() => navigate('/login')}
                   className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 transition-colors shadow-sm"
                 >
                   <UserCircle size={16} />
@@ -204,26 +165,42 @@ export default function App() {
 
       {/* Page Content */}
       <main className="flex flex-col flex-1">
-        {page === 'home' && (
-          <HomePage onSelectVenue={handleSelectVenue} />
-        )}
-        {page === 'detail' && selectedVenue && (
-          <VenueDetailPage
-            venue={selectedVenue}
-            onBack={goHome}
-            onBook={handleBook}
-          />
-        )}
-        {page === 'checkout' && bookingDraft && (
-          <CheckoutPage
-            draft={bookingDraft}
-            onBack={() => setPage('detail')}
-            onSuccess={handleCheckoutSuccess}
-          />
-        )}
-        {page === 'history' && (
-          <HistoryPage />
-        )}
+        <Routes>
+          <Route path="/" element={<HomePage onSelectVenue={handleSelectVenue} />} />
+          <Route path="/detail" element={
+            selectedVenue ? (
+              <VenueDetailPage
+                venue={selectedVenue}
+                onBack={goHome}
+                onBook={handleBook}
+              />
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                Data lapangan tidak ditemukan.{' '}
+                <button onClick={goHome} className="text-blue-600 font-semibold hover:underline">
+                  Kembali ke Beranda
+                </button>
+              </div>
+            )
+          } />
+          <Route path="/checkout" element={
+            bookingDraft ? (
+              <CheckoutPage
+                draft={bookingDraft}
+                onBack={() => navigate('/detail')}
+                onSuccess={handleCheckoutSuccess}
+              />
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                Data pesanan kosong.{' '}
+                <button onClick={goHome} className="text-blue-600 font-semibold hover:underline">
+                  Kembali ke Beranda
+                </button>
+              </div>
+            )
+          } />
+          <Route path="/history" element={<HistoryPage />} />
+        </Routes>
       </main>
     </div>
   );
