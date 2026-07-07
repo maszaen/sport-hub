@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Eye, EyeOff } from 'lucide-react';
+import '../auth.css';
 
 interface AuthPageProps {
   onAuth: () => void;
@@ -11,7 +11,6 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,125 +24,115 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          options: { data: { full_name: fullName || 'User' } },
         });
         if (error) throw error;
-        onAuth();
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        onAuth();
       }
+      onAuth();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Terjadi kesalahan';
-      setError(msg === 'Invalid login credentials' ? 'Email atau password salah' : msg);
+      if (msg === 'Invalid login credentials') {
+        setError('Email atau password salah');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">SportHub</h1>
-          <p className="text-sm text-gray-500 mt-1">Platform booking lapangan olahraga</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {mode === 'signin' ? 'Masuk ke SportHub' : 'Buat Akun Baru'}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
+    <div className="auth-page-wrapper">
+      <div className="auth-container font-helvetica">
+        <div className="card-container">
+          <div className="left-cont">
+            <img className="symbol" src="/assets/symbol.svg" alt="SportHub Symbol" />
+            <h1 className="login-title font-google">
+              {mode === 'signin' ? 'Sign in' : 'Register'}
+            </h1>
+            <p>
               {mode === 'signin'
-                ? 'Masukkan email dan password Anda'
-                : 'Lengkapi data untuk mendaftar'}
+                ? 'Please enter your account credentials to continue the login process.'
+                : 'Please provide your details to create a new account.'}
             </p>
           </div>
 
-          {error && (
-            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-              {error}
-            </div>
-          )}
+          <div className="right-cont">
+            <form onSubmit={handleSubmit}>
+              {error && <div className="auth-error">{error}</div>}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Nama Lengkap
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
-                  required
-                  className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
-                />
+              <div className="form-group">
+                {mode === 'signup' && (
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      id="auth-name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="input-field"
+                      placeholder=" "
+                      required
+                    />
+                    <label htmlFor="auth-name" className="input-label">Enter your name</label>
+                  </div>
+                )}
+
+                <div className="input-group">
+                  <input
+                    type="email"
+                    id="auth-email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="input-field"
+                    placeholder=" "
+                    required
+                  />
+                  <label htmlFor="auth-email" className="input-label">Enter your email</label>
+                </div>
+
+                <div className="input-group">
+                  <input
+                    type="password"
+                    id="auth-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field"
+                    placeholder=" "
+                    required
+                  />
+                  <label htmlFor="auth-password" className="input-label">
+                    {mode === 'signin' ? 'Enter your password' : 'Create a password'}
+                  </label>
+                </div>
+
+                {mode === 'signin' && (
+                  <a href="#" className="forgot-password ml-7">Forgot password?</a>
+                )}
               </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@email.com"
-                required
-                className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
-              />
-            </div>
+              <p className="help-text ml-7">
+                {mode === 'signin'
+                  ? <>If you're unable to access your account or facing login issues, please don't hesitate to <a href="#">contact us</a> for assistance.</>
+                  : <>By registering, you agree to our <a href="#">terms of service</a> and <a href="#">privacy policy</a>.</>
+                }
+              </p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 6 karakter"
-                  required
-                  minLength={6}
-                  className="w-full px-3.5 py-2.5 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
-                />
+              <div className="button-group">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="btn-secondary"
+                  onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); }}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {mode === 'signin' ? 'Register' : 'Sign in'}
+                </button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Loading...' : mode === 'signin' ? 'Sign in' : 'Register'}
                 </button>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 active:bg-gray-950 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              {loading ? 'Memproses...' : mode === 'signin' ? 'Masuk' : 'Buat Akun'}
-            </button>
-          </form>
-
-          <div className="mt-5 text-center">
-            <p className="text-sm text-gray-500">
-              {mode === 'signin' ? 'Belum punya akun?' : 'Sudah punya akun?'}{' '}
-              <button
-                onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); }}
-                className="text-gray-900 font-medium hover:underline"
-              >
-                {mode === 'signin' ? 'Daftar sekarang' : 'Masuk'}
-              </button>
-            </p>
+            </form>
           </div>
         </div>
       </div>

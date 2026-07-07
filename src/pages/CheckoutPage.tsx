@@ -102,19 +102,19 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
   return (
     <div className="flex-1 bg-white">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+      <div className="sticky top-0 bg-white border-b border-gray-100 z-10 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
           <button
             onClick={onBack}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
           >
             <ChevronLeft size={20} className="text-gray-700" />
           </button>
-          <h1 className="text-base font-semibold text-gray-900">CheckOut</h1>
+          <h1 className="text-base font-semibold text-gray-900">Checkout</h1>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 pb-8">
         {/* Venue summary card */}
         <div className="mt-5 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex gap-0">

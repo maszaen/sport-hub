@@ -51,20 +51,22 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
   return (
     <div className="flex-1 bg-white">
       {/* Hero */}
-      <div className="relative h-52 overflow-hidden">
+      <div className="relative h-64 sm:h-80 overflow-hidden">
         <img
           src={HERO_IMAGES[selectedSport]}
           alt={selectedSport}
-          className="w-full h-full object-cover transition-all duration-500"
+          className="w-full h-full object-cover transition-all duration-700 scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pt-8">
-          <p className="text-white/80 text-xs font-medium uppercase tracking-widest mb-1">Temukan Lapangan</p>
-          <h2 className="text-white text-2xl font-bold leading-tight">{selectedSport}</h2>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 pb-8 pt-16">
+            <p className="text-white/80 text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] mb-2">Temukan Lapangan</p>
+            <h2 className="text-white text-3xl sm:text-4xl font-extrabold leading-tight">{selectedSport}</h2>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6">
         {/* Search */}
         <div className="relative mt-4 mb-5">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -96,9 +98,9 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
 
         {/* Venue Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-32 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-12">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -106,43 +108,45 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
             <p className="text-sm">Tidak ada lapangan ditemukan</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-12">
             {filtered.map((venue) => (
               <button
                 key={venue.id}
                 onClick={() => onSelectVenue(venue)}
-                className="group text-left flex gap-0 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all"
+                className="group text-left flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
               >
-                <img
-                  src={venue.image_url}
-                  alt={venue.name}
-                  className="w-36 h-28 object-cover shrink-0"
-                />
-                <div className="flex flex-col justify-between p-3 flex-1 min-w-0">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 text-sm leading-snug truncate">
-                      {venue.name}
-                    </h3>
-                    <div className="flex items-start gap-1 mt-1">
-                      <MapPin size={11} className="text-gray-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{venue.address}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1">
-                      <Star size={11} className="text-amber-400 fill-amber-400" />
-                      <span className="text-xs text-gray-600 font-medium">{venue.rating}</span>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <span className="text-xs font-semibold text-gray-900">
-                        {formatPrice(venue.price_per_hour)}
-                      </span>
-                      <span className="text-xs text-gray-400">/jam</span>
-                    </div>
+                <div className="relative w-full h-48 overflow-hidden">
+                  <img
+                    src={venue.image_url}
+                    alt={venue.name}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                    <Star size={12} className="text-amber-500 fill-amber-500" />
+                    <span className="text-xs font-bold text-gray-900">{venue.rating}</span>
                   </div>
                 </div>
-                <div className="flex items-center pr-2 text-gray-300 group-hover:text-gray-500 transition-colors">
-                  <ChevronRight size={16} />
+                <div className="flex flex-col p-4 flex-1 w-full">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base leading-snug truncate">
+                      {venue.name}
+                    </h3>
+                    <div className="flex items-start gap-1.5 mt-2">
+                      <MapPin size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                      <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{venue.address}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-extrabold text-gray-900">
+                        {formatPrice(venue.price_per_hour)}
+                      </span>
+                      <span className="text-xs text-gray-500 font-medium">/jam</span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors text-gray-400">
+                      <ChevronRight size={16} />
+                    </div>
+                  </div>
                 </div>
               </button>
             ))}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Booking } from '../types';
-import { Calendar, Clock, MapPin, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, AlertCircle, X } from 'lucide-react';
 
 function formatPrice(price: number) {
   return `Rp ${price.toLocaleString('id-ID')}`;
@@ -38,12 +38,21 @@ export default function HistoryPage() {
   }
 
   if (selected) {
-    return <BookingDetail booking={selected} onBack={() => setSelected(null)} />;
+    return (
+      <BookingDetail
+        booking={selected}
+        onBack={() => setSelected(null)}
+        onStatusChange={() => {
+          fetchBookings();
+          setSelected(null);
+        }}
+      />
+    );
   }
 
   return (
     <div className="flex-1 bg-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
         <div className="pt-6 pb-4">
           <h1 className="text-xl font-bold text-gray-900">Riwayat Booking</h1>
           <p className="text-sm text-gray-500 mt-0.5">Semua riwayat pemesanan lapangan Anda</p>
@@ -113,13 +122,41 @@ export default function HistoryPage() {
   );
 }
 
-function BookingDetail({ booking, onBack }: { booking: Booking; onBack: () => void }) {
+function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; onBack: () => void; onStatusChange: () => void }) {
   const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.confirmed;
+  const [showModal, setShowModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const calculateRefund = () => {
+    const matchDate = new Date(`${booking.booking_date}T${booking.start_time}`);
+    const now = new Date();
+    const diffHours = (matchDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (diffHours < 2) {
+      return { percentage: 0, amount: 0, msg: 'Kurang dari 2 jam (Tidak ada refund)' };
+    } else if (diffHours < 24) {
+      return { percentage: 50, amount: booking.total_price * 0.5, msg: 'Kurang dari 1 hari (Potongan 50%)' };
+    } else if (diffHours < 48) {
+      return { percentage: 80, amount: booking.total_price * 0.8, msg: 'Kurang dari 2 hari (Potongan 20%)' };
+    } else {
+      return { percentage: 100, amount: booking.total_price, msg: 'Lebih dari 2 hari (Refund penuh 100%)' };
+    }
+  };
+
+  const refund = calculateRefund();
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id);
+    setCancelling(false);
+    setShowModal(false);
+    onStatusChange();
+  };
 
   return (
     <div className="flex-1 bg-white">
-      <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+      <div className="sticky top-0 bg-white border-b border-gray-100 z-10 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
           <button
             onClick={onBack}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
@@ -130,7 +167,7 @@ function BookingDetail({ booking, onBack }: { booking: Booking; onBack: () => vo
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 pb-8">
         {/* Venue */}
         <div className="mt-5 flex gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
           {booking.venue?.image_url && (
@@ -176,7 +213,67 @@ function BookingDetail({ booking, onBack }: { booking: Booking; onBack: () => vo
             <span className="text-sm font-bold text-gray-900">{formatPrice(booking.total_price)}</span>
           </div>
         </div>
+
+        {/* Action */}
+        {booking.status === 'confirmed' && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowModal(true)}
+              className="w-full py-3.5 bg-white text-red-600 border border-red-200 font-semibold rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors text-sm shadow-sm"
+            >
+              Batalkan Booking
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Cancel Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertCircle size={20} />
+                <h3 className="font-semibold">Konfirmasi Pembatalan</h3>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Apakah Anda yakin ingin membatalkan pemesanan lapangan ini?
+              </p>
+              
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+                <p className="text-xs font-semibold text-red-800 mb-1">Ketentuan Refund:</p>
+                <p className="text-xs text-red-600 mb-2">{refund.msg}</p>
+                <div className="flex justify-between items-center border-t border-red-100 pt-2 mt-2">
+                  <span className="text-sm font-medium text-red-900">Total Refund:</span>
+                  <span className="text-sm font-bold text-red-900">{formatPrice(refund.amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 bg-gray-50 flex gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                Kembali
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="flex-1 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50"
+              >
+                {cancelling ? 'Memproses...' : 'Ya, Batalkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
