@@ -109,11 +109,11 @@ export default function AuthPage({ onAuth }: AuthPageProps) {
                 </div>
 
                 {mode === 'signin' && (
-                  <a href="#" className="forgot-password ml-7">Forgot password?</a>
+                  <a href="#" className="forgot-password ml-1">Forgot password?</a>
                 )}
               </div>
 
-              <p className="help-text ml-7">
+              <p className="help-text ml-1">
                 {mode === 'signin'
                   ? <>If you're unable to access your account or facing login issues, please don't hesitate to <a href="#">contact us</a> for assistance.</>
                   : <>By registering, you agree to our <a href="#">terms of service</a> and <a href="#">privacy policy</a>.</>

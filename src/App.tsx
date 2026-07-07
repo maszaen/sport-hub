@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import { Venue, BookingDraft } from './types';
 import { User } from '@supabase/supabase-js';
@@ -11,13 +11,52 @@ import { Search, History, LogOut, Home, UserCircle } from 'lucide-react';
 
 type Page = 'home' | 'detail' | 'checkout' | 'history' | 'auth';
 
+const getInitialPage = (): Page => {
+  const path = window.location.pathname.slice(1);
+  if (['home', 'detail', 'checkout', 'history', 'auth'].includes(path)) {
+    return path as Page;
+  }
+  return 'home';
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<Page>(getInitialPage());
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const navigate = (newPage: Page, replace = false) => {
+    setPage(newPage);
+    const url = newPage === 'home' ? '/' : `/${newPage}`;
+    if (replace) {
+      window.history.replaceState({ page: newPage }, '', url);
+    } else {
+      window.history.pushState({ page: newPage }, '', url);
+    }
+  };
+
+  // Gunakan ref supaya event listener auth selalu punya nilai page terbaru
+  // tanpa harus me-re-run useEffect setiap kali page berubah.
+  const pageRef = useRef(page);
+  pageRef.current = page;
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.page) {
+        setPage(e.state.page as Page);
+      } else {
+        setPage(getInitialPage());
+      }
+    };
+    
+    // Set initial state hanya sekali saat pertama kali web diload
+    window.history.replaceState({ page: getInitialPage() }, '', window.location.pathname);
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,18 +68,19 @@ export default function App() {
       const newUser = session?.user ?? null;
       setUser(newUser);
       // Jika user baru login dan sedang di halaman auth, redirect ke home
-      if (newUser && page === 'auth') {
+      if (newUser && pageRef.current === 'auth') {
+        // Panggil navigate tanpa re-render useEffect
         setPage('home');
+        window.history.replaceState({ page: 'home' }, '', '/');
       }
     });
 
     return () => subscription.unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    setPage('home');
+    navigate('home');
     setSelectedVenue(null);
     setBookingDraft(null);
   };
@@ -58,32 +98,32 @@ export default function App() {
 
   // Render AuthPage sebagai overlay jika page === 'auth'
   if (page === 'auth') {
-    return <AuthPage onAuth={() => setPage('home')} />;
+    return <AuthPage onAuth={() => navigate('home')} />;
   }
 
   const handleSelectVenue = (venue: Venue) => {
     setSelectedVenue(venue);
-    setPage('detail');
+    navigate('detail');
   };
 
   const handleBook = (draft: BookingDraft) => {
     // Kalau belum login, redirect ke auth dulu
     if (!user) {
-      setPage('auth');
+      navigate('auth');
       return;
     }
     setBookingDraft(draft);
-    setPage('checkout');
+    navigate('checkout');
   };
 
   const handleCheckoutSuccess = () => {
-    setPage('history');
+    navigate('history');
     setBookingDraft(null);
     setSelectedVenue(null);
   };
 
   const goHome = () => {
-    setPage('home');
+    navigate('home');
     setSelectedVenue(null);
     setBookingDraft(null);
   };
@@ -102,9 +142,10 @@ export default function App() {
           <div className="flex items-center gap-3 h-16">
             <button
               onClick={goHome}
-              className="text-xl font-bold text-gray-900 tracking-tight hover:opacity-80 transition-opacity shrink-0"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
             >
-              SportHub
+              <img src="/assets/symbol.svg" alt="SportHub Logo" className="w-5 h-5" />
+              <span className="text-xl font-bold text-gray-900 tracking-tight">SportHub</span>
             </button>
             {(page === 'home' || page === 'detail') && (
               <div className="flex-1 relative">
