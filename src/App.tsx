@@ -7,13 +7,21 @@ import HomePage from './pages/HomePage';
 import VenueDetailPage from './pages/VenueDetailPage';
 import CheckoutPage from './pages/CheckoutPage';
 import HistoryPage from './pages/HistoryPage';
-import { Search, History, LogOut, Home, UserCircle } from 'lucide-react';
+import ProfilePage from './pages/ProfilePage';
+import AdminDashboard from './pages/AdminDashboard';
+import WishlistPage from './pages/WishlistPage';
+import { Notification } from './types';
+import { Search, History, LogOut, Home, UserCircle, Settings, Heart, Bell } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotif, setShowNotif] = useState(false);
+
   // Shared state (could also be moved to Context or URL params, but keeping it simple for the refactor)
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
@@ -22,15 +30,51 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const fetchProfileRole = async (userId: string) => {
+    try {
+      const { data } = await supabase.from('profiles').select('role').eq('id', userId).single();
+      setIsAdmin(data?.role === 'admin');
+    } catch {
+      setIsAdmin(false);
+    }
+  };
+
+  const fetchNotifications = async (userId: string) => {
+    try {
+      const { data } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(5);
+      if (data) setNotifications(data);
+    } catch {
+      // ignore
+    }
+  };
+
+  const markNotifRead = async (id: string) => {
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch {}
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfileRole(session.user.id);
+        fetchNotifications(session.user.id);
+      }
       setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       const newUser = session?.user ?? null;
       setUser(newUser);
+      if (newUser) {
+        fetchProfileRole(newUser.id);
+        fetchNotifications(newUser.id);
+      } else {
+        setIsAdmin(false);
+        setNotifications([]);
+      }
       // Jika user baru login dan sedang di halaman auth, redirect ke home
       if (newUser && window.location.pathname === '/login') {
         navigate('/', { replace: true });
@@ -45,6 +89,7 @@ export default function App() {
     navigate('/');
     setSelectedVenue(null);
     setBookingDraft(null);
+    setIsAdmin(false);
   };
 
   if (authLoading) {
@@ -99,7 +144,7 @@ export default function App() {
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="flex items-center gap-3 h-16">
             <button
               onClick={goHome}
@@ -108,25 +153,56 @@ export default function App() {
               <img src="/assets/symbol.svg" alt="SportHub Logo" className="w-5 h-5" />
               <span className="text-xl font-bold text-gray-900 tracking-tight">SportHub</span>
             </button>
-            {(location.pathname === '/' || location.pathname === '/detail') && (
-              <div className="flex-1 relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Cari lapangan..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-sm bg-gray-100 border border-gray-200 rounded-full focus:outline-none focus:bg-white focus:ring-2 focus:ring-gray-300 focus:border-transparent transition-all placeholder:text-gray-400"
-                />
-              </div>
-            )}
-            {(location.pathname === '/checkout' || location.pathname === '/history') && (
-              <div className="flex-1" />
-            )}
+            <div className="flex-1" />
             <div className="flex items-center gap-1.5 shrink-0">
               {user ? (
                 <>
                   <span className="text-xs text-gray-500 hidden sm:block mr-1 font-medium">Hi, {displayName}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate('/admin')}
+                      title="Admin Dashboard"
+                      className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/admin' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                    >
+                      <Settings size={16} />
+                    </button>
+                  )}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowNotif(!showNotif)}
+                      title="Notifikasi"
+                      className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors relative"
+                    >
+                      <Bell size={16} />
+                      {notifications.some(n => !n.is_read) && (
+                        <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></div>
+                      )}
+                    </button>
+                    {showNotif && (
+                      <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
+                        <div className="p-3 border-b border-gray-100 font-semibold text-gray-900">Notifikasi</div>
+                        <div className="max-h-80 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <div className="p-6 text-center text-gray-500 text-sm">Belum ada notifikasi</div>
+                          ) : (
+                            notifications.map(n => (
+                              <div key={n.id} onClick={() => markNotifRead(n.id)} className={`p-4 border-b border-gray-50 cursor-pointer hover:bg-gray-50 ${!n.is_read ? 'bg-blue-50/50' : ''}`}>
+                                <h4 className={`text-sm ${!n.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>{n.title}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{n.message}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => navigate('/wishlist')}
+                    title="Favorit"
+                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/wishlist' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                  >
+                    <Heart size={16} />
+                  </button>
                   <button
                     onClick={() => navigate('/history')}
                     title="Riwayat Booking"
@@ -135,8 +211,16 @@ export default function App() {
                     <History size={16} />
                   </button>
                   <button
+                    onClick={() => navigate('/profile')}
+                    title="Profil"
+                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/profile' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                  >
+                    <UserCircle size={16} />
+                  </button>
+                  <button
                     onClick={goHome}
                     title="Home"
+
                     className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
                   >
                     <Home size={16} />
@@ -200,6 +284,9 @@ export default function App() {
             )
           } />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <div className="p-8 text-center text-red-500">Akses Ditolak</div>} />
         </Routes>
       </main>
     </div>

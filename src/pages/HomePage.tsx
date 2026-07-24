@@ -27,26 +27,54 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchVenues();
-  }, [selectedSport]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 6;
 
-  async function fetchVenues() {
-    setLoading(true);
-    const { data } = await supabase
+  useEffect(() => {
+    fetchVenues(true);
+  }, [selectedSport, search]);
+
+  async function fetchVenues(reset = false) {
+    if (reset) {
+      setLoading(true);
+      setPage(0);
+    }
+    const currentPage = reset ? 0 : page;
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    let query = supabase
       .from('venues')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('sport', selectedSport)
-      .order('rating', { ascending: false });
-    setVenues(data ?? []);
-    setLoading(false);
+      .order('rating', { ascending: false })
+      .range(from, to);
+
+    if (search) {
+      query = query.ilike('name', `%${search}%`);
+    }
+
+    const { data, count } = await query;
+    
+    if (data) {
+      if (reset) {
+        setVenues(data);
+      } else {
+        setVenues(prev => [...prev, ...data]);
+      }
+      setHasMore(count !== null && (from + data.length) < count);
+    }
+    if (reset) setLoading(false);
   }
 
-  const filtered = venues.filter(
-    (v) =>
-      v.name.toLowerCase().includes(search.toLowerCase()) ||
-      v.address.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleLoadMore = () => {
+    setPage(p => p + 1);
+  };
+
+  useEffect(() => {
+    if (page > 0) fetchVenues(false);
+  }, [page]);
 
   return (
     <div className="flex-1 bg-white">
@@ -98,59 +126,65 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
 
         {/* Venue Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-12">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse" />
-            ))}
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-sm text-gray-500">Memuat lapangan...</p>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <p className="text-sm">Tidak ada lapangan ditemukan</p>
+        ) : venues.length === 0 ? (
+          <div className="text-center py-20 bg-gray-50 rounded-2xl border border-gray-100">
+            <p className="text-gray-500">Tidak ada lapangan {selectedSport} yang ditemukan.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-12">
-            {filtered.map((venue) => (
-              <button
-                key={venue.id}
-                onClick={() => onSelectVenue(venue)}
-                className="group text-left flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className="relative w-full h-48 overflow-hidden">
-                  <img
-                    src={venue.image_url}
-                    alt={venue.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                    <Star size={12} className="text-amber-500 fill-amber-500" />
-                    <span className="text-xs font-bold text-gray-900">{venue.rating}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col p-4 flex-1 w-full">
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-base leading-snug truncate">
-                      {venue.name}
-                    </h3>
-                    <div className="flex items-start gap-1.5 mt-2">
-                      <MapPin size={14} className="text-gray-400 mt-0.5 shrink-0" />
-                      <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{venue.address}</p>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {venues.map((v) => (
+                <div
+                  key={v.id}
+                  onClick={() => onSelectVenue(v)}
+                  className="group bg-white rounded-2xl overflow-hidden border border-gray-200 cursor-pointer shadow-sm hover:shadow-md transition-all flex flex-col"
+                >
+                  <div className="relative h-44 overflow-hidden bg-gray-100">
+                    <img
+                      src={v.image_url}
+                      alt={v.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                      <Star size={12} className="text-amber-400 fill-amber-400" />
+                      <span className="text-xs font-semibold text-amber-700">{v.rating}</span>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-extrabold text-gray-900">
-                        {formatPrice(venue.price_per_hour)}
-                      </span>
-                      <span className="text-xs text-gray-500 font-medium">/jam</span>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-bold text-gray-900 truncate mb-1">{v.name}</h3>
+                    <div className="flex items-center gap-1 mb-4">
+                      <MapPin size={12} className="text-gray-400 shrink-0" />
+                      <p className="text-xs text-gray-500 truncate">{v.address}</p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors text-gray-400">
-                      <ChevronRight size={16} />
+                    <div className="mt-auto flex items-center justify-between border-t border-gray-100 pt-3">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm font-bold text-gray-900">{formatPrice(v.price_per_hour)}</span>
+                        <span className="text-xs text-gray-400">/jam</span>
+                      </div>
+                      <button className="w-7 h-7 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-900 group-hover:text-white transition-colors text-gray-400">
+                        <ChevronRight size={14} />
+                      </button>
                     </div>
                   </div>
                 </div>
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+            
+            {hasMore && (
+              <div className="mt-8 flex justify-center">
+                <button 
+                  onClick={handleLoadMore}
+                  className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50 transition-colors shadow-sm"
+                >
+                  Muat Lebih Banyak
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

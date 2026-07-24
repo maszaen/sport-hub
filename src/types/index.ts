@@ -45,3 +45,48 @@ export interface BookingDraft {
   hours: number;
   totalPrice: number;
 }
+
+export interface Profile {
+  id: string;
+  role: 'user' | 'admin';
+  full_name?: string;
+  avatar_url?: string;
+  phone?: string;
+  created_at: string;
+}
+
+export interface Promo {
+  id: string;
+  code: string;
+  discount_percent: number;
+  max_discount: number;
+  valid_until: string;
+  created_at: string;
+}
+
+export interface Review {
+  id: string;
+  user_id: string;
+  venue_id: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+  profile?: Profile;
+}
+
+export interface Wishlist {
+  id: string;
+  user_id: string;
+  venue_id: string;
+  created_at: string;
+  venue?: Venue;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}

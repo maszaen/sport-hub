@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingDraft } from '../types';
-import { ChevronLeft, CheckCircle, MapPin, Calendar, Clock } from 'lucide-react';
+import { ChevronLeft, CheckCircle, MapPin, Calendar, Clock, CreditCard, Tag } from 'lucide-react';
+
+interface Promo {
+  code: string;
+  discount_percent: number;
+  max_discount: number;
+}
 
 interface CheckoutPageProps {
   draft: BookingDraft;
@@ -27,13 +33,61 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<Promo | null>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
+  const [showPaymentMock, setShowPaymentMock] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('qris');
 
-  const total = draft.totalPrice + SERVICE_FEE;
+  const discountAmount = appliedPromo 
+    ? Math.min(draft.totalPrice * (appliedPromo.discount_percent / 100), appliedPromo.max_discount)
+    : 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const total = draft.totalPrice + SERVICE_FEE - discountAmount;
+
+  const checkPromo = async () => {
+    if (!promoCode.trim()) return;
+    setCheckingPromo(true);
+    setPromoError('');
+    try {
+      const { data, error } = await supabase
+        .from('promos')
+        .select('*')
+        .eq('code', promoCode.toUpperCase())
+        .single();
+      
+      if (error || !data) {
+        throw new Error('Kode promo tidak ditemukan');
+      }
+      
+      if (new Date(data.valid_until) < new Date()) {
+        throw new Error('Kode promo sudah kadaluarsa');
+      }
+      
+      setAppliedPromo(data as Promo);
+      setPromoCode('');
+    } catch (err: unknown) {
+      setPromoError(err instanceof Error ? err.message : 'Gagal menggunakan promo');
+      setAppliedPromo(null);
+    } finally {
+      setCheckingPromo(false);
+    }
+  };
+
+  const handleInitialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name || !phone) {
+      setError('Mohon lengkapi data pemesan');
+      return;
+    }
     setError('');
+    setShowPaymentMock(true);
+  };
+
+  const executePaymentAndBooking = async () => {
     setLoading(true);
+    setError('');
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -55,10 +109,57 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
       setSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal membuat booking');
+      setShowPaymentMock(false);
     } finally {
       setLoading(false);
     }
   };
+
+  if (showPaymentMock && !success) {
+    return (
+      <div className="flex-1 bg-white flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-gray-50 p-6 rounded-2xl border border-gray-200">
+          <div className="flex items-center gap-3 mb-6">
+            <button onClick={() => setShowPaymentMock(false)} className="p-2 -ml-2 rounded-full hover:bg-gray-200 transition-colors">
+              <ChevronLeft size={20} className="text-gray-600" />
+            </button>
+            <h2 className="text-lg font-bold text-gray-900">Pilih Pembayaran</h2>
+          </div>
+          
+          <div className="space-y-3 mb-6">
+            <label className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'qris' ? 'border-gray-900 bg-white ring-1 ring-gray-900' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+              <div className="flex items-center gap-3">
+                <CreditCard size={20} className={paymentMethod === 'qris' ? 'text-gray-900' : 'text-gray-500'} />
+                <span className="font-medium text-sm">QRIS (Gopay, OVO, Dana)</span>
+              </div>
+              <input type="radio" name="payment" checked={paymentMethod === 'qris'} onChange={() => setPaymentMethod('qris')} className="hidden" />
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'qris' ? 'border-gray-900' : 'border-gray-300'}`}>
+                {paymentMethod === 'qris' && <div className="w-2 h-2 rounded-full bg-gray-900" />}
+              </div>
+            </label>
+            <label className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-colors ${paymentMethod === 'transfer' ? 'border-gray-900 bg-white ring-1 ring-gray-900' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+              <div className="flex items-center gap-3">
+                <CreditCard size={20} className={paymentMethod === 'transfer' ? 'text-gray-900' : 'text-gray-500'} />
+                <span className="font-medium text-sm">Transfer Bank (BCA/Mandiri/BNI)</span>
+              </div>
+              <input type="radio" name="payment" checked={paymentMethod === 'transfer'} onChange={() => setPaymentMethod('transfer')} className="hidden" />
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'transfer' ? 'border-gray-900' : 'border-gray-300'}`}>
+                {paymentMethod === 'transfer' && <div className="w-2 h-2 rounded-full bg-gray-900" />}
+              </div>
+            </label>
+          </div>
+
+          <button
+            onClick={executePaymentAndBooking}
+            disabled={loading}
+            className="w-full py-3.5 bg-gray-900 text-white font-medium rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 text-sm"
+          >
+            {loading ? 'Memproses...' : `Bayar ${formatPrice(total)} (Mock)`}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -150,7 +251,7 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <form onSubmit={handleInitialSubmit} className="mt-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Data Pemesan</h2>
 
           <div>
@@ -190,8 +291,52 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
             />
           </div>
 
-          {/* Order Summary */}
+          {/* Promo Section */}
           <div className="mt-2">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Makin hemat pakai promo!</h2>
+            {!appliedPromo ? (
+              <div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Tag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder="Masukkan kode voucher"
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 transition-all uppercase"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={checkPromo}
+                    disabled={checkingPromo || !promoCode.trim()}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-900 font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm border border-gray-200 shrink-0"
+                  >
+                    {checkingPromo ? 'Cek...' : 'Pakai'}
+                  </button>
+                </div>
+                {promoError && <p className="text-red-500 text-xs mt-2">{promoError}</p>}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-green-600" />
+                  <span className="text-sm font-medium text-green-700">Promo {appliedPromo.code} Terpakai!</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAppliedPromo(null)}
+                  className="text-xs font-semibold text-red-600 hover:text-red-700"
+                >
+                  Hapus
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Order Summary */}
+          <div className="mt-4 border-t border-gray-100 pt-4">
             <h2 className="text-sm font-semibold text-gray-900 mb-3">Ringkasan Pembayaran</h2>
             <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-2.5">
               <div className="flex justify-between text-sm">
@@ -202,8 +347,14 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
                 <span className="text-gray-500">Biaya layanan</span>
                 <span className="text-gray-900 font-medium">{formatPrice(SERVICE_FEE)}</span>
               </div>
+              {appliedPromo && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Diskon Promo ({appliedPromo.code})</span>
+                  <span className="font-medium">-{formatPrice(discountAmount)}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2.5 flex justify-between">
-                <span className="text-sm font-semibold text-gray-900">Total</span>
+                <span className="text-sm font-semibold text-gray-900">Total Pembayaran</span>
                 <span className="text-sm font-bold text-gray-900">{formatPrice(total)}</span>
               </div>
             </div>

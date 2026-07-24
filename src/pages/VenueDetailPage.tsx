@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Venue, BookingDraft } from '../types';
-import { MapPin, Star, ChevronLeft, ChevronRight, Clock, Calendar } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Venue, BookingDraft, Review } from '../types';
+import { MapPin, Star, ChevronLeft, ChevronRight, Clock, Calendar, Heart } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface VenueDetailPageProps {
   venue: Venue;
@@ -122,21 +125,122 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);
   const [step, setStep] = useState<'start' | 'end'>('start');
+  
+  const [wishlistId, setWishlistId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(true);
+  
+  // Realtime locks
+  const [lockedSlots, setLockedSlots] = useState<string[]>([]);
+  const channel = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    // Setup Realtime Channel
+    const ch = supabase.channel('booking_locks')
+      .on('broadcast', { event: 'lock' }, payload => {
+        if (payload.payload.venue_id === venue.id && payload.payload.date === selectedDate) {
+           setLockedSlots(prev => [...new Set([...prev, ...payload.payload.slots])]);
+        }
+      })
+      .on('broadcast', { event: 'unlock' }, payload => {
+        if (payload.payload.venue_id === venue.id && payload.payload.date === selectedDate) {
+           setLockedSlots(prev => prev.filter(s => !payload.payload.slots.includes(s)));
+        }
+      })
+      .subscribe();
+      
+    channel.current = ch;
+    
+    return () => {
+      if (channel.current) {
+         channel.current.send({ type: 'broadcast', event: 'unlock', payload: { venue_id: venue.id, date: selectedDate, slots: TIME_SLOTS }});
+      }
+      supabase.removeChannel(ch);
+    }
+  }, [venue.id, selectedDate]);
+
+  useEffect(() => {
+    // reset locks on date change
+    setLockedSlots([]);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchExtras();
+  }, [venue.id]);
+
+  const fetchExtras = async () => {
+    try {
+      const [reviewsRes, userRes] = await Promise.all([
+        supabase.from('reviews').select('*, profile:profiles(full_name, avatar_url)').eq('venue_id', venue.id).order('created_at', { ascending: false }),
+        supabase.auth.getUser()
+      ]);
+      
+      if (reviewsRes.data) {
+        setReviews(reviewsRes.data);
+      }
+      
+      if (userRes.data.user) {
+        const { data: wlData } = await supabase.from('wishlists').select('id').eq('user_id', userRes.data.user.id).eq('venue_id', venue.id).maybeSingle();
+        if (wlData) setWishlistId(wlData.id);
+      }
+    } catch (error) {
+      console.error('Error fetching extras:', error);
+    } finally {
+      setLoadingExtras(false);
+    }
+  };
+
+  const toggleWishlist = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('Silakan login untuk menambahkan ke favorit');
+      return;
+    }
+    
+    if (wishlistId) {
+      await supabase.from('wishlists').delete().eq('id', wishlistId);
+      setWishlistId(null);
+    } else {
+      const { data } = await supabase.from('wishlists').insert({ user_id: user.id, venue_id: venue.id }).select().single();
+      if (data) setWishlistId(data.id);
+    }
+  };
 
   const handleTimeClick = (slot: string) => {
+    if (lockedSlots.includes(slot)) return;
+
     if (step === 'start') {
       setStartTime(slot);
       setEndTime(null);
       setStep('end');
+      channel.current?.send({ type: 'broadcast', event: 'lock', payload: { venue_id: venue.id, date: selectedDate, slots: [slot] }});
     } else {
       if (startTime && timeToMinutes(slot) <= timeToMinutes(startTime)) {
+        // Unlock old start time
+        channel.current?.send({ type: 'broadcast', event: 'unlock', payload: { venue_id: venue.id, date: selectedDate, slots: [startTime] }});
         setStartTime(slot);
         setEndTime(null);
+        channel.current?.send({ type: 'broadcast', event: 'lock', payload: { venue_id: venue.id, date: selectedDate, slots: [slot] }});
         return;
       }
+      
       const endSlot = minutesToTime(timeToMinutes(slot) + 60);
+      
+      // Calculate all slots in between
+      const slotsToLock = [];
+      for (let m = timeToMinutes(startTime!) + 60; m <= timeToMinutes(slot); m+=60) {
+        slotsToLock.push(minutesToTime(m));
+      }
+      
+      // Check if any intermediate slots are locked
+      if (slotsToLock.some(s => lockedSlots.includes(s))) {
+        alert('Beberapa slot dalam rentang ini sudah dipilih orang lain.');
+        return;
+      }
+
       setEndTime(endSlot);
       setStep('start');
+      channel.current?.send({ type: 'broadcast', event: 'lock', payload: { venue_id: venue.id, date: selectedDate, slots: slotsToLock }});
     }
   };
 
@@ -167,12 +271,20 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
       <div className="relative h-72 md:h-96 overflow-hidden bg-gray-100">
         <img src={venue.image_url} alt={venue.name} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <button
-          onClick={onBack}
-          className="absolute top-4 left-4 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:bg-white transition-colors"
-        >
-          <ChevronLeft size={18} className="text-gray-800" />
-        </button>
+        <div className="absolute inset-0 max-w-5xl mx-auto w-full pointer-events-none">
+          <button
+            onClick={onBack}
+            className="absolute top-4 left-4 sm:left-6 md:left-8 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:bg-white transition-colors pointer-events-auto"
+          >
+            <ChevronLeft size={18} className="text-gray-800" />
+          </button>
+          <button
+            onClick={toggleWishlist}
+            className="absolute top-4 right-4 sm:right-6 md:right-8 w-9 h-9 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:bg-white transition-colors pointer-events-auto"
+          >
+            <Heart size={18} className={wishlistId ? "fill-red-500 text-red-500" : "text-gray-800"} />
+          </button>
+        </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-8">
@@ -212,7 +324,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
             </div>
 
             {/* Gallery */}
-            <div className="py-6">
+            <div className="py-6 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900 mb-3">Foto Lapangan</h2>
               <ScrollableRow>
                 <img src={venue.image_url} alt="main" className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
@@ -220,6 +332,60 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
                   <img key={i} src={img} alt={`gallery-${i}`} className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
                 ))}
               </ScrollableRow>
+            </div>
+
+            {/* Map & Location */}
+            <div className="py-6 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Lokasi Lapangan</h2>
+              <div className="h-48 rounded-xl overflow-hidden shadow-inner border border-gray-200">
+                 {/* Default coordinate to Jakarta since we don't have lat/lng in DB for now */}
+                 <MapContainer center={[-6.200000, 106.816666]} zoom={13} style={{ height: '100%', width: '100%' }}>
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  />
+                  <Marker position={[-6.200000, 106.816666]}>
+                    <Popup>{venue.name}</Popup>
+                  </Marker>
+                </MapContainer>
+              </div>
+            </div>
+
+            {/* Reviews */}
+            <div className="py-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Star size={18} className="text-amber-400 fill-amber-400" />
+                <h2 className="text-base font-semibold text-gray-900">Ulasan Pengguna</h2>
+                <span className="text-sm font-medium text-gray-500">({reviews.length})</span>
+              </div>
+              
+              {loadingExtras ? (
+                <p className="text-sm text-gray-500">Memuat ulasan...</p>
+              ) : reviews.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">Belum ada ulasan untuk lapangan ini.</p>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map(r => (
+                    <div key={r.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <img src={r.profile?.avatar_url || 'https://ui-avatars.com/api/?name=' + (r.profile?.full_name || 'User')} alt="Avatar" className="w-8 h-8 rounded-full" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{r.profile?.full_name || 'Pengguna Anonim'}</p>
+                            <p className="text-xs text-gray-500">{new Date(r.created_at).toLocaleDateString('id-ID')}</p>
+                          </div>
+                        </div>
+                        <div className="flex">
+                          {[1,2,3,4,5].map(star => (
+                            <Star key={star} size={12} className={star <= r.rating ? "text-amber-400 fill-amber-400" : "text-gray-300"} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-700">{r.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -259,15 +425,20 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
                     const isStart = slot === startTime;
                     const isEnd = endTime ? slot === minutesToTime(timeToMinutes(endTime) - 60) : false;
                     const inRange = isInRange(slot);
+                    const isLocked = lockedSlots.includes(slot) && !isStart && !inRange;
+
                     return (
                       <button
                         key={slot}
+                        disabled={isLocked}
                         onClick={() => handleTimeClick(slot)}
                         className={`py-2 rounded-lg text-sm font-medium border transition-all text-center ${
                           isStart || isEnd
                             ? 'bg-gray-900 text-white border-gray-900'
                             : inRange
                             ? 'bg-gray-100 text-gray-700 border-gray-200'
+                            : isLocked
+                            ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50'
                             : 'bg-white text-gray-700 border-gray-300 hover:border-gray-500'
                         }`}
                       >

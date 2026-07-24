@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Booking } from '../types';
-import { Calendar, Clock, MapPin, ChevronRight, AlertCircle, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronRight, AlertCircle, X, Star, MessageSquare } from 'lucide-react';
 
 function formatPrice(price: number) {
   return `Rp ${price.toLocaleString('id-ID')}`;
@@ -125,7 +125,25 @@ export default function HistoryPage() {
 function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; onBack: () => void; onStatusChange: () => void }) {
   const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.confirmed;
   const [showModal, setShowModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [reviewDone, setReviewDone] = useState(false);
+
+  useEffect(() => {
+    checkExistingReview();
+  }, [booking.id]);
+
+  const checkExistingReview = async () => {
+    // Only check if completed
+    if (booking.status !== 'completed') return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from('reviews').select('id').eq('user_id', user.id).eq('venue_id', booking.venue_id).maybeSingle();
+    if (data) setReviewDone(true);
+  };
 
   const calculateRefund = () => {
     const matchDate = new Date(`${booking.booking_date}T${booking.start_time}`);
@@ -151,6 +169,22 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
     setCancelling(false);
     setShowModal(false);
     onStatusChange();
+  };
+
+  const handleSubmitReview = async () => {
+    setSubmittingReview(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('reviews').insert({
+        user_id: user.id,
+        venue_id: booking.venue_id,
+        rating,
+        comment
+      });
+      setReviewDone(true);
+    }
+    setSubmittingReview(false);
+    setShowReviewModal(false);
   };
 
   return (
@@ -225,6 +259,24 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
             </button>
           </div>
         )}
+        
+        {booking.status === 'completed' && !reviewDone && (
+          <div className="mt-8">
+            <button
+              onClick={() => setShowReviewModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-800 active:bg-gray-700 transition-colors text-sm shadow-sm"
+            >
+              <MessageSquare size={16} /> Tulis Ulasan Lapangan
+            </button>
+          </div>
+        )}
+        {booking.status === 'completed' && reviewDone && (
+          <div className="mt-8 p-4 bg-green-50 border border-green-100 rounded-xl text-center">
+            <p className="text-sm text-green-700 font-medium flex items-center justify-center gap-2">
+              <Star size={16} className="fill-green-600 text-green-600" /> Anda sudah memberikan ulasan
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Cancel Modal */}
@@ -269,6 +321,58 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
                 className="flex-1 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors text-sm disabled:opacity-50"
               >
                 {cancelling ? 'Memproses...' : 'Ya, Batalkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-900">
+                <Star size={20} className="fill-amber-400 text-amber-400" />
+                <h3 className="font-semibold">Beri Ulasan</h3>
+              </div>
+              <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 text-center mb-2">
+                Bagaimana pengalaman Anda bermain di <b>{booking.venue?.name}</b>?
+              </p>
+              <div className="flex justify-center gap-2">
+                {[1,2,3,4,5].map(star => (
+                  <button key={star} onClick={() => setRating(star)}>
+                    <Star size={28} className={star <= rating ? "fill-amber-400 text-amber-400" : "text-gray-200"} />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Ceritakan pengalamanmu..."
+                className="w-full mt-4 p-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 bg-gray-50 focus:bg-white transition-all h-24 resize-none"
+              />
+            </div>
+
+            <div className="p-5 bg-gray-50 flex gap-3">
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleSubmitReview}
+                disabled={submittingReview || comment.trim().length === 0}
+                className="flex-1 py-2.5 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors text-sm disabled:opacity-50"
+              >
+                {submittingReview ? 'Mengirim...' : 'Kirim Ulasan'}
               </button>
             </div>
           </div>
