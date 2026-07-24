@@ -351,13 +351,15 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
                     <p className="text-sm text-gray-500">{venue.address}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end shrink-0">
-                  <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg">
-                    <Star size={13} className="text-amber-400 fill-amber-400" />
-                    <span className="text-sm font-semibold text-amber-700">{venue.rating}</span>
+                {venue.rating > 0 && (
+                  <div className="flex flex-col items-end shrink-0">
+                    <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg">
+                      <Star size={13} className="text-amber-400 fill-amber-400" />
+                      <span className="text-sm font-semibold text-amber-700">{venue.rating}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Rating</p>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Rating</p>
-                </div>
+                )}
               </div>
 
               <div className="mt-3 flex items-baseline gap-1">

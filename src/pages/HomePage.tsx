@@ -150,10 +150,12 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
                       alt={v.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
-                      <Star size={12} className="text-amber-400 fill-amber-400" />
-                      <span className="text-xs font-semibold text-amber-700">{v.rating}</span>
-                    </div>
+                    {v.rating > 0 && (
+                      <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                        <Star size={12} className="text-amber-400 fill-amber-400" />
+                        <span className="text-xs font-semibold text-amber-700">{v.rating}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
                     <h3 className="font-bold text-gray-900 truncate mb-1">{v.name}</h3>
