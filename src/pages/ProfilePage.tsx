@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { Profile } from '../types';
 import { UserCircle, Save, Camera } from 'lucide-react';
+import { useModal } from '../components/ModalProvider';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -15,6 +16,7 @@ export default function ProfilePage() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const { showAlert, showConfirm } = useModal();
 
   useEffect(() => {
     loadProfile();
@@ -165,6 +167,29 @@ export default function ProfilePage() {
             <Save size={18} /> {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </form>
+
+        {profile?.role === 'user' && (
+          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Punya Lapangan Olahraga?</h3>
+            <p className="text-xs text-gray-500 mb-4">Daftar sebagai vendor untuk mulai menyewakan lapangan Anda di SportHub.</p>
+            <button
+              onClick={() => {
+                showConfirm('Apakah Anda yakin ingin mendaftar sebagai Vendor?', async () => {
+                  const { error } = await supabase.from('profiles').update({ role: 'vendor' }).eq('id', user?.id);
+                  if (!error) {
+                    showAlert('Berhasil mendaftar! Silakan refresh halaman atau login ulang untuk mengakses Dashboard Vendor.', 'success');
+                    setTimeout(() => window.location.reload(), 2000);
+                  } else {
+                    showAlert('Gagal mendaftar: ' + error.message, 'error');
+                  }
+                });
+              }}
+              className="w-full py-2.5 bg-blue-50 text-blue-700 font-medium rounded-xl hover:bg-blue-100 transition-colors text-sm"
+            >
+              Daftar sebagai Vendor
+            </button>
+          </div>
+        )}
         </div>
       </div>
     </div>

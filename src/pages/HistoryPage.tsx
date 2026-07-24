@@ -33,7 +33,20 @@ export default function HistoryPage() {
       .from('bookings')
       .select('*, venue:venues(*)')
       .order('created_at', { ascending: false });
-    setBookings(data ?? []);
+      
+    const now = new Date();
+    const updatedData = data?.map(b => {
+      if (b.status === 'confirmed') {
+        const endDate = new Date(`${b.booking_date}T${b.end_time}`);
+        if (now >= endDate) {
+          supabase.from('bookings').update({ status: 'completed' }).eq('id', b.id).then();
+          return { ...b, status: 'completed' };
+        }
+      }
+      return b;
+    });
+      
+    setBookings(updatedData ?? []);
     setLoading(false);
   }
 
@@ -122,23 +135,39 @@ export default function HistoryPage() {
   );
 }
 
+import { BookingDetailProps } from '../types'; // Just mock import or define props inline
+import { useModal } from '../components/ModalProvider';
+
 function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; onBack: () => void; onStatusChange: () => void }) {
-  const status = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG.confirmed;
+  const getBookingState = () => {
+    if (booking.status === 'cancelled') return 'cancelled';
+    if (booking.status === 'completed') return 'completed';
+    const now = new Date();
+    const startDate = new Date(`${booking.booking_date}T${booking.start_time}`);
+    const endDate = new Date(`${booking.booking_date}T${booking.end_time}`);
+    if (now >= endDate) return 'completed';
+    if (now >= startDate && now < endDate) return 'ongoing';
+    return 'upcoming';
+  };
+  const bookingState = getBookingState();
+  const displayStatus = STATUS_CONFIG[bookingState === 'ongoing' ? 'confirmed' : bookingState] ?? STATUS_CONFIG.confirmed;
+
   const [showModal, setShowModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [reviewDone, setReviewDone] = useState(false);
+  const { showConfirm } = useModal();
 
   useEffect(() => {
     checkExistingReview();
-  }, [booking.id]);
+  }, [booking.id, bookingState]);
 
   const checkExistingReview = async () => {
-    // Only check if completed
-    if (booking.status !== 'completed') return;
+    if (bookingState !== 'completed') return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase.from('reviews').select('id').eq('user_id', user.id).eq('venue_id', booking.venue_id).maybeSingle();
@@ -169,6 +198,15 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
     setCancelling(false);
     setShowModal(false);
     onStatusChange();
+  };
+
+  const handleEndSession = async () => {
+    showConfirm('Selesaikan sesi sekarang? Anda bisa langsung memberikan ulasan.', async () => {
+      setEndingSession(true);
+      await supabase.from('bookings').update({ status: 'completed' }).eq('id', booking.id);
+      setEndingSession(false);
+      onStatusChange();
+    });
   };
 
   const handleSubmitReview = async () => {
@@ -217,8 +255,8 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
               <MapPin size={11} className="text-gray-400 shrink-0" />
               <p className="text-xs text-gray-500 truncate">{booking.venue?.address}</p>
             </div>
-            <span className={`inline-flex mt-2 text-xs px-2 py-0.5 rounded-full font-medium ${status.className}`}>
-              {status.label}
+            <span className={`inline-flex mt-2 text-xs px-2 py-0.5 rounded-full font-medium ${displayStatus.className}`}>
+              {bookingState === 'ongoing' ? 'Sedang Bermain' : displayStatus.label}
             </span>
           </div>
         </div>
@@ -249,7 +287,7 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
         </div>
 
         {/* Action */}
-        {booking.status === 'confirmed' && (
+        {bookingState === 'upcoming' && (
           <div className="mt-8">
             <button
               onClick={() => setShowModal(true)}
@@ -260,7 +298,20 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
           </div>
         )}
         
-        {booking.status === 'completed' && !reviewDone && (
+        {bookingState === 'ongoing' && (
+          <div className="mt-8">
+            <button
+              onClick={handleEndSession}
+              disabled={endingSession}
+              className="w-full py-3.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 active:bg-indigo-800 transition-colors text-sm shadow-sm disabled:opacity-50"
+            >
+              {endingSession ? 'Menyelesaikan...' : 'Selesaikan Sesi'}
+            </button>
+            <p className="text-xs text-gray-500 mt-2 text-center">Akhiri sesi lebih awal untuk memberikan ulasan lapangan.</p>
+          </div>
+        )}
+        
+        {bookingState === 'completed' && !reviewDone && (
           <div className="mt-8">
             <button
               onClick={() => setShowReviewModal(true)}
@@ -270,7 +321,7 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
             </button>
           </div>
         )}
-        {booking.status === 'completed' && reviewDone && (
+        {bookingState === 'completed' && reviewDone && (
           <div className="mt-8 p-4 bg-green-50 border border-green-100 rounded-xl text-center">
             <p className="text-sm text-green-700 font-medium flex items-center justify-center gap-2">
               <Star size={16} className="fill-green-600 text-green-600" /> Anda sudah memberikan ulasan

@@ -10,13 +10,15 @@ import HistoryPage from './pages/HistoryPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import WishlistPage from './pages/WishlistPage';
+import VendorDashboard from './pages/VendorDashboard';
 import { Notification } from './types';
-import { Search, History, LogOut, Home, UserCircle, Settings, Heart, Bell } from 'lucide-react';
+import { Search, History, LogOut, Home, UserCircle, Settings, Heart, Bell, Store } from 'lucide-react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isVendor, setIsVendor] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -34,8 +36,10 @@ export default function App() {
     try {
       const { data } = await supabase.from('profiles').select('role').eq('id', userId).single();
       setIsAdmin(data?.role === 'admin');
+      setIsVendor(data?.role === 'vendor');
     } catch {
       setIsAdmin(false);
+      setIsVendor(false);
     }
   };
 
@@ -73,6 +77,7 @@ export default function App() {
         fetchNotifications(newUser.id);
       } else {
         setIsAdmin(false);
+        setIsVendor(false);
         setNotifications([]);
       }
       // Jika user baru login dan sedang di halaman auth, redirect ke home
@@ -90,6 +95,7 @@ export default function App() {
     setSelectedVenue(null);
     setBookingDraft(null);
     setIsAdmin(false);
+    setIsVendor(false);
   };
 
   if (authLoading) {
@@ -165,6 +171,15 @@ export default function App() {
                       className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/admin' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
                     >
                       <Settings size={16} />
+                    </button>
+                  )}
+                  {isVendor && (
+                    <button
+                      onClick={() => navigate('/vendor')}
+                      title="Vendor Dashboard"
+                      className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${location.pathname === '/vendor' ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600'}`}
+                    >
+                      <Store size={16} />
                     </button>
                   )}
                   <div className="relative">
@@ -287,6 +302,7 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <div className="p-8 text-center text-red-500">Akses Ditolak</div>} />
+          <Route path="/vendor" element={isVendor ? <VendorDashboard /> : <div className="p-8 text-center text-red-500">Akses Ditolak</div>} />
         </Routes>
       </main>
     </div>

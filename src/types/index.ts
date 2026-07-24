@@ -9,6 +9,10 @@ export interface Venue {
   price_per_hour: number;
   image_url: string;
   rating: number;
+  vendor_id: string;
+  capacity: number;
+  status: 'pending' | 'active' | 'rejected' | 'closure_requested' | 'closed';
+  status_reason?: string;
   created_at: string;
 }
 
@@ -32,6 +36,7 @@ export interface Booking {
   booker_name: string;
   phone: string;
   notes: string;
+  guest_count: number;
   status: BookingStatus;
   created_at: string;
   venue?: Venue;
@@ -44,11 +49,12 @@ export interface BookingDraft {
   endTime: string;
   hours: number;
   totalPrice: number;
+  guestCount: number;
 }
 
 export interface Profile {
   id: string;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'vendor';
   full_name?: string;
   avatar_url?: string;
   phone?: string;

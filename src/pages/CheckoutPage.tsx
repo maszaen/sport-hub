@@ -102,6 +102,7 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
         booker_name: name,
         phone,
         notes,
+        guest_count: draft.guestCount,
         status: 'confirmed',
       });
 

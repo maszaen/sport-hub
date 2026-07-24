@@ -4,6 +4,7 @@ import { Venue, BookingDraft, Review } from '../types';
 import { MapPin, Star, ChevronLeft, ChevronRight, Clock, Calendar, Heart } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useModal } from '../components/ModalProvider';
 
 interface VenueDetailPageProps {
   venue: Venue;
@@ -129,10 +130,22 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
   const [wishlistId, setWishlistId] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
+  const { showAlert } = useModal();
   
-  // Realtime locks
+  const [guestCount, setGuestCount] = useState(1);
   const [lockedSlots, setLockedSlots] = useState<string[]>([]);
+  const [dateBookings, setDateBookings] = useState<{start_time: string, end_time: string, guest_count: number}[]>([]);
   const channel = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    const fetchDateBookings = async () => {
+      const { data } = await supabase.from('bookings').select('start_time, end_time, guest_count')
+        .eq('venue_id', venue.id).eq('booking_date', selectedDate).eq('status', 'confirmed');
+      if (data) setDateBookings(data as any);
+    };
+    fetchDateBookings();
+    setLockedSlots([]);
+  }, [venue.id, selectedDate]);
 
   useEffect(() => {
     // Setup Realtime Channel
@@ -159,10 +172,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
     }
   }, [venue.id, selectedDate]);
 
-  useEffect(() => {
-    // reset locks on date change
-    setLockedSlots([]);
-  }, [selectedDate]);
+  // Removed redundant setLockedSlots reset since it's now handled in the fetchDateBookings effect
 
   useEffect(() => {
     fetchExtras();
@@ -193,7 +203,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
   const toggleWishlist = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      alert('Silakan login untuk menambahkan ke favorit');
+      showAlert('Silakan login untuk menambahkan ke favorit', 'error');
       return;
     }
     
@@ -234,7 +244,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
       
       // Check if any intermediate slots are locked
       if (slotsToLock.some(s => lockedSlots.includes(s))) {
-        alert('Beberapa slot dalam rentang ini sudah dipilih orang lain.');
+        showAlert('Beberapa slot dalam rentang ini sudah dipilih orang lain.', 'error');
         return;
       }
 
@@ -247,6 +257,28 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
   const isInRange = (slot: string) => {
     if (!startTime || !endTime) return false;
     return timeToMinutes(slot) >= timeToMinutes(startTime) && timeToMinutes(slot) < timeToMinutes(endTime);
+  };
+
+  const isSlotFull = (slot: string) => {
+    if (selectedDate === getTodayDate()) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      if (timeToMinutes(slot) <= currentMinutes) {
+        return true;
+      }
+    }
+
+    const slotMin = timeToMinutes(slot);
+    let count = 0;
+    dateBookings.forEach(b => {
+      const bStart = timeToMinutes(b.start_time.substring(0, 5));
+      const bEnd = timeToMinutes(b.end_time.substring(0, 5));
+      if (slotMin >= bStart && slotMin < bEnd) {
+        count += (b.guest_count || 1);
+      }
+    });
+    const realtimeCount = lockedSlots.includes(slot) ? 1 : 0;
+    return (count + realtimeCount + guestCount) > (venue.capacity || 1);
   };
 
   const hours = startTime && endTime ? calcHours(startTime, endTime) : 0;
@@ -262,7 +294,18 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
       endTime: endTime!,
       hours,
       totalPrice,
+      guestCount,
     });
+  };
+
+  const handleGuestChange = (val: number) => {
+    setGuestCount(val);
+    if (startTime) {
+      channel.current?.send({ type: 'broadcast', event: 'unlock', payload: { venue_id: venue.id, date: selectedDate, slots: [startTime] }});
+    }
+    setStartTime(null);
+    setEndTime(null);
+    setStep('start');
   };
 
   return (
@@ -411,6 +454,34 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
                 )}
               </div>
 
+              {/* Guest Count */}
+              <div className="py-5 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-sm font-semibold text-gray-900">Jumlah Orang</h2>
+                  <span className="text-xs text-gray-500">Maks. {venue.capacity || 1} orang per sesi</span>
+                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  Tentukan berapa orang yang akan bermain
+                </p>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => handleGuestChange(Math.max(1, guestCount - 1))}
+                    disabled={guestCount <= 1}
+                    className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    -
+                  </button>
+                  <span className="text-sm font-medium w-8 text-center">{guestCount}</span>
+                  <button 
+                    onClick={() => handleGuestChange(Math.min((venue.capacity || 1), guestCount + 1))}
+                    disabled={guestCount >= (venue.capacity || 1)}
+                    className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               {/* Time Slots */}
               <div className="py-5 border-b border-gray-100">
                 <div className="flex items-center gap-2 mb-1">
@@ -425,7 +496,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
                     const isStart = slot === startTime;
                     const isEnd = endTime ? slot === minutesToTime(timeToMinutes(endTime) - 60) : false;
                     const inRange = isInRange(slot);
-                    const isLocked = lockedSlots.includes(slot) && !isStart && !inRange;
+                    const isLocked = isSlotFull(slot) && !isStart && !inRange;
 
                     return (
                       <button
