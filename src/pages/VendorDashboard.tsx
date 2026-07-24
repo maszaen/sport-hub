@@ -4,6 +4,7 @@ import { Venue, Booking, Sport } from '../types';
 import { Plus, Trash2, Edit, X, Save, Upload, Store, MapPin, Calendar, Clock, CreditCard, XCircle, AlertCircle } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import { useModal } from '../components/ModalProvider';
+import VenueImage from '../components/VenueImage';
 
 const SPORTS: Sport[] = ['Padel', 'Futsal', 'Tennis', 'Mini Soccer', 'Bulu Tangkis'];
 
@@ -231,7 +232,7 @@ export default function VendorDashboard() {
                 <div className="p-8 text-center text-gray-500 text-sm">Anda belum memiliki lapangan terdaftar.</div>
               ) : venues.map(v => (
                 <div key={v.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 hover:bg-gray-50/50 transition-colors group">
-                  <img src={v.image_url} alt={v.name} className="w-full sm:w-32 h-24 sm:h-20 object-cover rounded-xl border border-gray-100 shadow-sm" />
+                  <VenueImage src={v.image_url} alt={v.name} className="w-full sm:w-32 h-24 sm:h-20 object-cover rounded-xl border border-gray-100 shadow-sm" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-base font-semibold text-gray-900">{v.name}</h3>

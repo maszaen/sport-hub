@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Venue, Booking } from '../types';
 import { Check, X, LayoutDashboard, MapPin, Calendar, Clock, CreditCard, AlertCircle } from 'lucide-react';
 import { useModal } from '../components/ModalProvider';
+import VenueImage from '../components/VenueImage';
 
 export default function AdminDashboard() {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -109,10 +110,10 @@ export default function AdminDashboard() {
             </div>
             <div className="divide-y divide-gray-100">
               {allVenues.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 text-sm">Tidak ada data lapangan.</div>
+                <div className="p-8 text-center text-gray-500 text-sm">Belum ada lapangan terdaftar di sistem.</div>
               ) : allVenues.map(v => (
-                <div key={v.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 hover:bg-gray-50/50 transition-colors">
-                  <img src={v.image_url} alt={v.name} className="w-full sm:w-24 h-24 sm:h-16 object-cover rounded-xl border border-gray-100 shadow-sm" />
+                <div key={v.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 hover:bg-gray-50/50 transition-colors group">
+                  <VenueImage src={v.image_url} alt={v.name} className="w-full sm:w-32 h-24 sm:h-20 object-cover rounded-xl border border-gray-100 shadow-sm" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-base font-semibold text-gray-900">{v.name}</h3>
@@ -141,12 +142,12 @@ export default function AdminDashboard() {
             </div>
             <div className="divide-y divide-gray-100">
               {pendingVenues.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 text-sm">Tidak ada permintaan lapangan baru.</div>
+                <div className="p-8 text-center text-gray-500 text-sm">Tidak ada permintaan penutupan lapangan.</div>
               ) : pendingVenues.map(v => (
                 <div key={v.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 hover:bg-gray-50/50 transition-colors">
-                  <img src={v.image_url} alt={v.name} className="w-full sm:w-32 h-24 sm:h-20 object-cover rounded-xl border border-gray-100 shadow-sm" />
+                  <VenueImage src={v.image_url} alt={v.name} className="w-full sm:w-24 h-24 sm:h-16 object-cover rounded-xl border border-gray-100 shadow-sm" />
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-gray-900 mb-1">{v.name}</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 truncate">{v.name}</h3>
                     <p className="text-sm text-gray-600 mb-2 truncate">{v.description}</p>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                       <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-md"><MapPin size={12}/> {v.sport}</span>

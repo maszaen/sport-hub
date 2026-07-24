@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Wishlist } from '../types';
 import { Heart, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import VenueImage from '../components/VenueImage';
 
 export default function WishlistPage() {
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);
@@ -71,7 +72,7 @@ export default function WishlistPage() {
                 >
                   <Heart size={18} className="fill-red-500" />
                 </button>
-                <img src={w.venue.image_url} alt={w.venue.name} className="w-full h-40 object-cover" />
+                <VenueImage src={w.venue.image_url} alt={w.venue.name} className="w-full h-40 object-cover" />
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900">{w.venue.name}</h3>
                   <div className="flex items-center gap-1 mt-1 text-gray-500 text-xs">

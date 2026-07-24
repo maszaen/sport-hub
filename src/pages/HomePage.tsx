@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Venue, Sport } from '../types';
 import { MapPin, Star, Search, ChevronRight } from 'lucide-react';
+import VenueImage from '../components/VenueImage';
 
 const SPORTS: Sport[] = ['Padel', 'Futsal', 'Tennis', 'Mini Soccer', 'Bulu Tangkis'];
 
@@ -144,7 +145,7 @@ export default function HomePage({ onSelectVenue }: HomePageProps) {
                   className="group bg-white rounded-2xl overflow-hidden border border-gray-200 cursor-pointer shadow-sm hover:shadow-md transition-all flex flex-col"
                 >
                   <div className="relative h-44 overflow-hidden bg-gray-100">
-                    <img
+                    <VenueImage
                       src={v.image_url}
                       alt={v.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

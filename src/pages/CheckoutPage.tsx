@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { BookingDraft } from '../types';
 import { ChevronLeft, CheckCircle, MapPin, Calendar, Clock, CreditCard, Tag } from 'lucide-react';
+import VenueImage from '../components/VenueImage';
 
 interface Promo {
   code: string;
@@ -220,7 +221,7 @@ export default function CheckoutPage({ draft, onBack, onSuccess }: CheckoutPageP
         {/* Venue summary card */}
         <div className="mt-5 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex gap-0">
-            <img
+            <VenueImage
               src={draft.venue.image_url}
               alt={draft.venue.name}
               className="w-28 h-24 object-cover shrink-0"

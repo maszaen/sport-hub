@@ -5,6 +5,7 @@ import { MapPin, Star, ChevronLeft, ChevronRight, Clock, Calendar, Heart } from 
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useModal } from '../components/ModalProvider';
+import VenueImage from '../components/VenueImage';
 
 interface VenueDetailPageProps {
   venue: Venue;
@@ -317,7 +318,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
     <div className="flex-1 bg-white">
       {/* Hero Image */}
       <div className="relative h-72 md:h-96 overflow-hidden bg-gray-100">
-        <img src={venue.image_url} alt={venue.name} className="w-full h-full object-cover" />
+        <VenueImage src={venue.image_url} alt={venue.name} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="absolute inset-0 max-w-5xl mx-auto w-full pointer-events-none">
           <button
@@ -375,9 +376,9 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
             <div className="py-6 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900 mb-3">Foto Lapangan</h2>
               <ScrollableRow>
-                <img src={venue.image_url} alt="main" className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
+                <VenueImage src={venue.image_url} alt="main" className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
                 {GALLERY.map((img, i) => (
-                  <img key={i} src={img} alt={`gallery-${i}`} className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
+                  <VenueImage key={i} src={img} alt={`gallery-${i}`} className="h-28 w-40 object-cover rounded-xl shrink-0 shadow-sm" />
                 ))}
               </ScrollableRow>
             </div>

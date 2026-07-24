@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Booking } from '../types';
 import { Calendar, Clock, MapPin, ChevronRight, AlertCircle, X, Star, MessageSquare } from 'lucide-react';
+import VenueImage from '../components/VenueImage';
 
 function formatPrice(price: number) {
   return `Rp ${price.toLocaleString('id-ID')}`;
@@ -135,7 +136,6 @@ export default function HistoryPage() {
   );
 }
 
-import { BookingDetailProps } from '../types'; // Just mock import or define props inline
 import { useModal } from '../components/ModalProvider';
 
 function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; onBack: () => void; onStatusChange: () => void }) {
@@ -241,12 +241,12 @@ function BookingDetail({ booking, onBack, onStatusChange }: { booking: Booking; 
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 pb-8">
         {/* Venue */}
-        <div className="mt-5 flex gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+        <div className="mt-5 flex flex-col md:flex-row gap-5 p-4 bg-gray-50 rounded-xl border border-gray-200">
           {booking.venue?.image_url && (
-            <img
-              src={booking.venue.image_url}
+            <VenueImage 
+              src={booking.venue.image_url} 
               alt={booking.venue.name}
-              className="w-20 h-16 object-cover rounded-lg shrink-0"
+              className="w-full md:w-48 h-32 md:h-auto object-cover rounded-xl shadow-sm border border-gray-100"
             />
           )}
           <div className="flex-1 min-w-0">
