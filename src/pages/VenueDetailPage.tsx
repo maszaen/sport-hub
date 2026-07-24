@@ -128,6 +128,7 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
   const [step, setStep] = useState<'start' | 'end'>('start');
   
   const [wishlistId, setWishlistId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
   const { showAlert } = useModal();
@@ -190,8 +191,12 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
       }
       
       if (userRes.data.user) {
-        const { data: wlData } = await supabase.from('wishlists').select('id').eq('user_id', userRes.data.user.id).eq('venue_id', venue.id).maybeSingle();
-        if (wlData) setWishlistId(wlData.id);
+        const [wlRes, profileRes] = await Promise.all([
+          supabase.from('wishlists').select('id').eq('user_id', userRes.data.user.id).eq('venue_id', venue.id).maybeSingle(),
+          supabase.from('profiles').select('role').eq('id', userRes.data.user.id).single()
+        ]);
+        if (wlRes.data) setWishlistId(wlRes.data.id);
+        if (profileRes.data) setRole(profileRes.data.role);
       }
     } catch (error) {
       console.error('Error fetching extras:', error);
@@ -564,13 +569,22 @@ export default function VenueDetailPage({ venue, onBack, onBook }: VenueDetailPa
 
               {/* Book Button */}
               <div className="pt-5">
-                <button
-                  onClick={handleBook}
-                  disabled={!canBook}
-                  className="w-full py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-800 active:bg-gray-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-sm"
-                >
-                  {canBook ? `Booking — ${formatPrice(totalPrice)}` : 'Pilih Tanggal & Waktu'}
-                </button>
+                {(role === 'admin' || role === 'vendor') ? (
+                  <button
+                    disabled
+                    className="w-full py-3.5 bg-gray-200 text-gray-500 font-semibold rounded-xl cursor-not-allowed text-sm shadow-sm"
+                  >
+                    Hanya User Biasa Yang Dapat Menyewa
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleBook}
+                    disabled={!canBook}
+                    className="w-full py-3.5 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-800 active:bg-gray-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-sm"
+                  >
+                    {canBook ? `Booking — ${formatPrice(totalPrice)}` : 'Pilih Tanggal & Waktu'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
